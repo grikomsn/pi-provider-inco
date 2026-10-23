@@ -1,6 +1,6 @@
 {
   "name": "pi-provider-inco",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Inco AI provider for pi with live model discovery",
   "type": "module",
   "license": "MIT",
