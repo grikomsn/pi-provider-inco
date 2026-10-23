@@ -11,14 +11,6 @@ An independent **Inco** integration for [pi 1.4+](https://pi.dev/docs/latest/pac
 
 ## Install
 
-Install from GitHub while the npm package is being bootstrapped:
-
-```sh
-pi install git:github.com/grikomsn/pi-provider-inco
-```
-
-After npm publication:
-
 ```sh
 pi install npm:pi-provider-inco
 ```
