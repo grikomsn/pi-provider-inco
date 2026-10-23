@@ -10,7 +10,9 @@ const host = "pi";
 const key = process.env.INCO_API_KEY;
 assert.ok(key, "Set INCO_API_KEY (or run node --env-file=/path/to/.env scripts/verify-live.mjs)");
 const root = await mkdtemp(join(tmpdir(), `inco-${host}-verify-`));
-const source = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const source = resolve(process.env.INCO_VERIFY_SOURCE ?? fileURLToPath(new URL("..", import.meta.url)));
+const model = process.env.INCO_VERIFY_MODEL ?? "deepseek-v4.1-flash:fast";
+const thinking = process.env.INCO_VERIFY_THINKING ?? "off";
 const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, USER: process.env.USER,
   SHELL: process.env.SHELL ?? "/bin/sh", TERM: "xterm-256color", INCO_API_KEY: key,
@@ -21,7 +23,7 @@ env.OPENCODE_CONFIG_DIR = join(root, "config", "opencode");
 env.OPENCODE_TEST_HOME = join(root, "home");
 env.PI_CODING_AGENT_DIR = join(root, "pi");
 const binary = process.env.INCO_CLIENT_BIN ?? host;
-const piArgs = ["--no-extensions", "-e", source, "--no-mcp", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-themes", "--no-approve", "--no-session", "--model", "inco/deepseek-v4.1-flash:fast", "--thinking", "off"];
+const piArgs = ["--no-extensions", "-e", source, "--no-mcp", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-themes", "--no-approve", "--no-session", "--model", `inco/${model}`, "--thinking", thinking];
 
 async function run(args, timeoutMs = 120_000) {
   const child = spawn(binary, args, { cwd: root, env, stdio: ["ignore", "pipe", "pipe"] });
@@ -38,7 +40,7 @@ async function run(args, timeoutMs = 120_000) {
   } finally { clearTimeout(timer); }
 }
 
-const summary = { host, model: "inco/deepseek-v4.1-flash:fast", cli: false, toolRoundTrip: false, tui: false, credentialSource: process.argv.includes("--saved-key") ? "saved" : "environment" };
+const summary = { host, model: `inco/${model}`, thinking, cli: false, toolRoundTrip: false, tui: false, credentialSource: process.argv.includes("--saved-key") ? "saved" : "environment" };
 const socket = `inco-verify-${process.pid}`;
 const tmux = (args) => spawnSync("tmux", ["-L", socket, "-f", "/dev/null", ...args], { env, encoding: "utf8" });
 try {

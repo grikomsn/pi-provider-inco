@@ -77,14 +77,15 @@ npm run check
 npm run package
 ```
 
-Tests use injected network fakes. Real inference checks are opt-in and incur service usage. The check uses temporary client configuration, data, cache and session directories, disables unrelated integrations, and prints only verification metadata:
+Tests use injected network fakes, including a packed-package inference check in bundled pi without locally installed SDK peers. Real inference checks are opt-in and incur service usage. The check uses temporary client configuration, data, cache and session directories, disables unrelated integrations, and prints only verification metadata:
 
 ```sh
 node --env-file=/path/to/.env scripts/verify-live.mjs
 node --env-file=/path/to/.env scripts/verify-live.mjs --tui
 node --env-file=/path/to/.env scripts/verify-live.mjs --saved-key --tui
+INCO_VERIFY_MODEL=glm-5.3-flash INCO_VERIFY_THINKING=high node --env-file=/path/to/.env scripts/verify-live.mjs --saved-key --tui
 ```
 
-The TUI checks run the real interactive client in an isolated tmux server. `--saved-key` verifies pi's native credential store using a temporary `auth.json`, with `INCO_API_KEY` removed from the client environment. Set `INCO_CLIENT_BIN` when the client is outside `PATH`. Temporary client state is removed afterward. See [verification.md](docs/verification.md) for the bootstrap run evidence.
+The TUI checks run the real interactive client in an isolated tmux server. `--saved-key` verifies pi's native credential store using a temporary `auth.json`, with `INCO_API_KEY` removed from the client environment. Set `INCO_CLIENT_BIN` when the client is outside `PATH`, or `INCO_VERIFY_SOURCE` to test an extracted npm package. Temporary client state is removed afterward. See [verification.md](docs/verification.md) for the isolated run evidence.
 
  See [CONTRIBUTING.md](CONTRIBUTING.md), [RELEASING.md](RELEASING.md), and [SECURITY.md](SECURITY.md).

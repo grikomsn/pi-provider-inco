@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createProvider, envApiKeyAuth, lazyApi, type Provider, type ProviderStreams } from "@earendil-works/pi-ai";
+import { createProvider, envApiKeyAuth, type Provider, type ProviderStreams } from "@earendil-works/pi-ai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { FALLBACK_MODELS, INCO_BASE_URL, type CatalogModel } from "./catalog.ts";
 import { discoverModels, credentialScope, type CatalogStorage } from "./discovery.ts";
@@ -25,7 +26,8 @@ function diskStorage(): CatalogStorage {
 export function incoProvider(storage: CatalogStorage = diskStorage(), fetcher: typeof fetch = fetch): Provider<"openai-completions"> {
   let catalog: CatalogModel[] = FALLBACK_MODELS;
   let scope: string | undefined;
-  const api = lazyApi(() => import("@earendil-works/pi-ai/api/openai-completions"));
+  // The bundled host exposes compat, not arbitrary pi-ai API subpaths.
+  const api = openAICompletionsApi();
   const wrap: ProviderStreams = {
     stream: (model, context, options) => api.stream({ ...model, baseUrl: INCO_BASE_URL }, context, {
       ...options,
