@@ -20,7 +20,7 @@
   "homepage": "https://github.com/grikomsn/pi-provider-inco#readme",
   "files": [
     "src",
-    "assets/cover.svg",
+    "assets/cover.jpg",
     "CHANGELOG.md",
     "README.md",
     "LICENSE"
@@ -29,7 +29,7 @@
     "extensions": [
       "./src/index.ts"
     ],
-    "image": "https://raw.githubusercontent.com/grikomsn/pi-provider-inco/main/assets/cover.svg"
+    "image": "https://raw.githubusercontent.com/grikomsn/pi-provider-inco/main/assets/cover.jpg"
   },
   "publishConfig": {
     "access": "public",

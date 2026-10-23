@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/cover.svg" alt="Inco provider for pi" width="800">
+  <img src="assets/cover.jpg" alt="Inco provider for pi" width="800">
 </p>
 
 # pi-provider-inco
