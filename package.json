@@ -1,0 +1,68 @@
+{
+  "name": "pi-provider-inco",
+  "version": "0.1.0",
+  "description": "Inco AI provider for pi with live model discovery",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "inco",
+    "inco-ai",
+    "ai-provider",
+    "pi-package"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/grikomsn/pi-provider-inco.git"
+  },
+  "bugs": {
+    "url": "https://github.com/grikomsn/pi-provider-inco/issues"
+  },
+  "homepage": "https://github.com/grikomsn/pi-provider-inco#readme",
+  "files": [
+    "src",
+    "assets/cover.svg",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ],
+    "image": "https://raw.githubusercontent.com/grikomsn/pi-provider-inco/main/assets/cover.svg"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --no-warnings --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test",
+    "package": "npm pack --dry-run",
+    "changeset": "changeset",
+    "version": "changeset version && npm install --package-lock-only --ignore-scripts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-ai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.3",
+    "@earendil-works/pi-coding-agent": "^1.4.0",
+    "@earendil-works/pi-ai": "^1.4.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}
