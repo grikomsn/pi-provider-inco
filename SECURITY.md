@@ -19,6 +19,6 @@ You should receive an acknowledgment and a request for any missing details. Plea
 
 ## Scope
 
-This extension forwards requests to the public [Inco AI](https://docs.aiand.com) service. It is independent and unaffiliated: report issues about the Inco AI service itself to Inco AI, and issues about this extension through the policy above.
+This integration forwards requests to the public Inco AI service at `api.inco.ai`. It is independent and unaffiliated: report issues about the Inco AI service itself to Inco AI, and issues about this integration through the policy above.
 
-API keys are read from the ambient environment (`AMPERSAND_API_KEY`) or Pi's credential store. Never commit keys; the tests use injected fakes and never contact the live service.
+API keys are read from the ambient environment (`INCO_API_KEY`) or pi's credential store. Never commit keys; the tests use injected fakes and never contact the live service.

@@ -85,6 +85,6 @@ node --env-file=/path/to/.env scripts/verify-live.mjs --tui
 node --env-file=/path/to/.env scripts/verify-live.mjs --saved-key --tui
 ```
 
-The TUI checks run the real interactive client in an isolated tmux server. `--saved-key` verifies native saved credentials with `INCO_API_KEY` removed from the client environment; OpenCode uses its native key login prompt. Set `INCO_CLIENT_BIN` when the client is outside `PATH`. Temporary client state is removed afterward. See [verification.md](docs/verification.md) for the bootstrap run evidence.
+The TUI checks run the real interactive client in an isolated tmux server. `--saved-key` verifies pi's native credential store using a temporary `auth.json`, with `INCO_API_KEY` removed from the client environment. Set `INCO_CLIENT_BIN` when the client is outside `PATH`. Temporary client state is removed afterward. See [verification.md](docs/verification.md) for the bootstrap run evidence.
 
  See [CONTRIBUTING.md](CONTRIBUTING.md), [RELEASING.md](RELEASING.md), and [SECURITY.md](SECURITY.md).
