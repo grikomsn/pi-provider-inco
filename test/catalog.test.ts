@@ -125,6 +125,7 @@ test("transient network classification follows the cause chain and never retries
   assert.ok(!isTransientNetworkError(new DOMException("aborted", "AbortError")));
   assert.ok(!isTransientNetworkError(new DOMException("fetch failed", "TimeoutError")));
   assert.ok(!isTransientNetworkError(new TypeError("redirect mode is set to error")));
+  assert.ok(!isTransientNetworkError(new TypeError("fetch failed", { cause: new Error("unexpected redirect") })));
   assert.ok(!isTransientNetworkError("fetch failed"));
 });
 test("Retry-After governs the backoff and retried bodies are released", async () => {
@@ -181,5 +182,13 @@ test("an abort that fails the request is not retried as a network error", async 
     controller.abort();
     throw new TypeError("fetch failed");
   }));
+  assert.equal(calls, 1);
+});
+test("a refused redirect fails on the first attempt", async () => {
+  let calls = 0;
+  await assert.rejects(fetchCatalog("a", undefined, async () => {
+    calls++;
+    throw new TypeError("fetch failed", { cause: new Error("unexpected redirect") });
+  }), /fetch failed/);
   assert.equal(calls, 1);
 });

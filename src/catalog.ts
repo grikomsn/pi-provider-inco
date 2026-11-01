@@ -132,11 +132,17 @@ function errorCause(error: Error, depth = 0): string {
   return typeof cause === "string" ? cause : "";
 }
 
-/** Connection-level failures that a fresh attempt can plausibly fix. Cancellation never qualifies. */
+/**
+ * Connection-level failures that a fresh attempt can plausibly fix. Cancellation
+ * never qualifies, and neither does a refused redirect: with `redirect: "error"`
+ * undici reports `fetch failed` caused by `unexpected redirect`, which is final.
+ */
 export function isTransientNetworkError(error: unknown): boolean {
   if (!(error instanceof Error) || error.name === "AbortError" || error.name === "TimeoutError") return false;
+  const detail = `${error.name}: ${error.message} ${errorCause(error)}`;
+  if (/unexpected redirect|redirect mode is set to error/i.test(detail)) return false;
   return /fetch failed|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT|UND_ERR_SOCKET|socket hang up/i
-    .test(`${error.name}: ${error.message} ${errorCause(error)}`);
+    .test(detail);
 }
 
 function backoff(ms: number, signal: AbortSignal): Promise<void> {
