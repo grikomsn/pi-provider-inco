@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FALLBACK_MODELS, CatalogError, fetchCatalog, parseCatalog, reasoningEfforts } from "../src/catalog.ts";
+import { FALLBACK_MODELS, CatalogError, fetchCatalog, isTransientNetworkError, parseCatalog, reasoningEfforts, retryDelayMs } from "../src/catalog.ts";
 import { discoverModels, credentialScope, catalogPayload, type CatalogStorage } from "../src/discovery.ts";
 import { prepareRequest } from "../src/request.ts";
 
@@ -100,4 +100,86 @@ test("standard DeepSeek rejects forced tools with thinking and accepts verified 
   assert.throws(() => prepareRequest({ tools: [{}], tool_choice: "required" }, "deepseek-v4.1-flash", FALLBACK_MODELS), /forced tool/);
   assert.equal(prepareRequest({ tools: [{}], tool_choice: "required", reasoning_effort: "none" }, "deepseek-v4.1-flash", FALLBACK_MODELS).reasoning_effort, "none");
   assert.doesNotThrow(() => prepareRequest({ tools: [{}], tool_choice: "auto" }, "deepseek-v4.1-flash", FALLBACK_MODELS));
+});
+test("retry delays honour Retry-After seconds and dates, capped, and ignore malformed values", () => {
+  assert.equal(retryDelayMs(0), 250);
+  assert.equal(retryDelayMs(1), 500);
+  assert.equal(retryDelayMs(9), 2000);
+  assert.equal(retryDelayMs(0, "0"), 0);
+  assert.equal(retryDelayMs(0, " 2 "), 2000);
+  assert.equal(retryDelayMs(0, "1.5"), 1500);
+  assert.equal(retryDelayMs(0, "120"), 5000);
+  assert.equal(retryDelayMs(0, new Date(Date.now() + 60_000).toUTCString()), 5000);
+  assert.equal(retryDelayMs(0, new Date(Date.now() - 60_000).toUTCString()), 0);
+  const soon = retryDelayMs(0, new Date(Date.now() + 3_000).toUTCString());
+  assert.ok(soon > 1000 && soon <= 3000);
+  for (const malformed of ["", "  ", "-1", "1e3", "soon", "Infinity", null, undefined]) {
+    assert.equal(retryDelayMs(1, malformed), 500, String(malformed));
+  }
+});
+test("transient network classification follows the cause chain and never retries cancellation", () => {
+  assert.ok(isTransientNetworkError(new TypeError("fetch failed")));
+  assert.ok(isTransientNetworkError(new TypeError("x", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) })));
+  assert.ok(isTransientNetworkError(new TypeError("x", { cause: new Error("y", { cause: new Error("socket hang up") }) })));
+  assert.ok(isTransientNetworkError(new Error("x", { cause: "getaddrinfo EAI_AGAIN api.inco.ai" })));
+  assert.ok(!isTransientNetworkError(new DOMException("aborted", "AbortError")));
+  assert.ok(!isTransientNetworkError(new DOMException("fetch failed", "TimeoutError")));
+  assert.ok(!isTransientNetworkError(new TypeError("redirect mode is set to error")));
+  assert.ok(!isTransientNetworkError("fetch failed"));
+});
+test("Retry-After governs the backoff and retried bodies are released", async () => {
+  let calls = 0;
+  let cancelled = 0;
+  const started = Date.now();
+  await fetchCatalog("a", undefined, async () => {
+    if (++calls > 1) return Response.json(live);
+    const body = new ReadableStream({ cancel() { cancelled++; } });
+    return new Response(body, { status: 429, headers: { "retry-after": "0" } });
+  });
+  assert.equal(calls, 2);
+  assert.equal(cancelled, 1);
+  assert.ok(Date.now() - started < 200, "Retry-After: 0 should skip the default backoff");
+});
+test("transient network errors retry up to three attempts, then surface", async () => {
+  let calls = 0;
+  assert.equal((await fetchCatalog("a", undefined, async () => {
+    if (++calls < 3) throw new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED") });
+    return Response.json(live);
+  })).length, 1);
+  assert.equal(calls, 3);
+  calls = 0;
+  await assert.rejects(fetchCatalog("a", undefined, async () => { calls++; throw new TypeError("fetch failed"); }), /fetch failed/);
+  assert.equal(calls, 3);
+  calls = 0;
+  await assert.rejects(fetchCatalog("a", undefined, async () => { calls++; throw new TypeError("redirect mode is set to error"); }), /redirect/);
+  assert.equal(calls, 1, "non-transient errors do not retry");
+});
+test("transient statuses stop after three attempts with the final status", async () => {
+  let calls = 0;
+  await assert.rejects(fetchCatalog("a", undefined, async () => { calls++; return new Response(null, { status: 503, headers: { "retry-after": "0" } }); }),
+    (error) => error instanceof CatalogError && error.status === 503);
+  assert.equal(calls, 3);
+});
+test("an abort during backoff rejects promptly without another attempt", async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const started = Date.now();
+  const pending = fetchCatalog("a", controller.signal, async () => {
+    calls++;
+    setTimeout(() => controller.abort(), 20);
+    return new Response(null, { status: 503, headers: { "retry-after": "5" } });
+  });
+  await assert.rejects(pending, { name: "AbortError" });
+  assert.equal(calls, 1);
+  assert.ok(Date.now() - started < 1000);
+});
+test("an abort that fails the request is not retried as a network error", async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  await assert.rejects(fetchCatalog("a", controller.signal, async () => {
+    calls++;
+    controller.abort();
+    throw new TypeError("fetch failed");
+  }));
+  assert.equal(calls, 1);
 });

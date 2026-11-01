@@ -1,5 +1,4 @@
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { createProvider, envApiKeyAuth, type Provider, type ProviderStreams } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/compat";
@@ -9,11 +8,24 @@ import { discoverModels, credentialScope, type CatalogStorage } from "./discover
 import { toPiModel } from "./models.ts";
 import { prepareRequest } from "./request.ts";
 
-function diskStorage(): CatalogStorage {
-  const directory = join(process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"), "cache", "pi-provider-inco");
+/**
+ * pi's own agent-directory resolution: an empty `PI_CODING_AGENT_DIR` counts as
+ * unset, `~` expands, and rebranded hosts use their own config directory. The
+ * host package is imported lazily, like the credential reader below, so module
+ * evaluation stays free of host side effects.
+ */
+async function piAgentDir(): Promise<string> {
+  const { getAgentDir } = await import("@earendil-works/pi-coding-agent");
+  return getAgentDir();
+}
+
+/** Resolved on every access, so agent-directory changes made before a session load are respected. */
+export function diskStorage(agentDir: () => string | Promise<string> = piAgentDir): CatalogStorage {
+  const cacheDirectory = async (): Promise<string> => join(await agentDir(), "cache", "pi-provider-inco");
   return {
-    read: async (scope) => JSON.parse(await readFile(join(directory, `${scope}.json`), "utf8")),
+    read: async (scope) => JSON.parse(await readFile(join(await cacheDirectory(), `${scope}.json`), "utf8")),
     write: async (scope, value) => {
+      const directory = await cacheDirectory();
       await mkdir(directory, { recursive: true, mode: 0o700 });
       const target = join(directory, `${scope}.json`);
       const temp = `${target}.${process.pid}.${crypto.randomUUID()}.tmp`;
