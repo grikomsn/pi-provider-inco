@@ -104,27 +104,86 @@ export class CatalogError extends Error {
   get refused(): boolean { return this.status === 401 || this.status === 403; }
 }
 
+/** Catalog statuses worth another attempt. */
+const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
+/** Total catalog attempts, shared by transient statuses and transient network errors. */
+const MAX_ATTEMPTS = 3;
+
+/**
+ * Backoff before retry `attempt + 1`: 250ms doubling, capped at 2s. A
+ * `Retry-After` header (delta-seconds or HTTP-date) wins, capped at 5s. The
+ * whole catalog request still shares one 10s deadline.
+ */
+export function retryDelayMs(attempt: number, retryAfter?: string | null): number {
+  const value = retryAfter?.trim();
+  if (value) {
+    if (/^\d+(?:\.\d+)?$/.test(value)) return Math.min(5_000, Number(value) * 1_000);
+    // HTTP-dates always name a weekday/month; bare numbers like "-1" are not dates.
+    const date = /[a-z]/i.test(value) ? Date.parse(value) : Number.NaN;
+    if (Number.isFinite(date)) return Math.max(0, Math.min(5_000, date - Date.now()));
+  }
+  return Math.min(2_000, 250 * 2 ** Math.max(0, attempt));
+}
+
+function errorCause(error: Error, depth = 0): string {
+  const cause = (error as Error & { cause?: unknown }).cause;
+  if (depth >= 5) return "";
+  if (cause instanceof Error) return `${cause.name}: ${cause.message} ${errorCause(cause, depth + 1)}`;
+  return typeof cause === "string" ? cause : "";
+}
+
+/**
+ * Connection-level failures that a fresh attempt can plausibly fix. Cancellation
+ * never qualifies, and neither does a refused redirect: with `redirect: "error"`
+ * undici reports `fetch failed` caused by `unexpected redirect`, which is final.
+ */
+export function isTransientNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error) || error.name === "AbortError" || error.name === "TimeoutError") return false;
+  const detail = `${error.name}: ${error.message} ${errorCause(error)}`;
+  if (/unexpected redirect|redirect mode is set to error/i.test(detail)) return false;
+  return /fetch failed|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT|UND_ERR_SOCKET|socket hang up/i
+    .test(detail);
+}
+
+function backoff(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const abort = (): void => { clearTimeout(timer); reject(signal.reason); };
+    const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, ms);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+  });
+}
+
 /** No credential-bearing redirects; error bodies and account data are never logged. */
 export async function fetchCatalog(apiKey: string, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<CatalogModel[]> {
   const combined = AbortSignal.any([AbortSignal.timeout(10_000), ...(signal ? [signal] : [])]);
   for (let attempt = 0; ; attempt++) {
     combined.throwIfAborted();
-    const response = await fetcher(`${INCO_BASE_URL}/models`, {
-      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
-      redirect: "error",
-      signal: combined,
-    });
-    if (attempt < 2 && [429, 500, 502, 503, 504].includes(response.status)) {
-      await response.body?.cancel();
-      await new Promise<void>((resolve, reject) => {
-        const abort = (): void => { clearTimeout(timer); reject(combined.reason); };
-        const timer = setTimeout(() => { combined.removeEventListener("abort", abort); resolve(); }, 250 * 2 ** attempt);
-        combined.addEventListener("abort", abort, { once: true });
-        if (combined.aborted) abort();
+    const retry = attempt < MAX_ATTEMPTS - 1;
+    let response: Response;
+    try {
+      response = await fetcher(`${INCO_BASE_URL}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        redirect: "error",
+        signal: combined,
       });
+    } catch (error) {
+      // Cancellation and the shared deadline are final; only connection failures retry.
+      if (combined.aborted || !retry || !isTransientNetworkError(error)) throw error;
+      await backoff(retryDelayMs(attempt), combined);
       continue;
     }
-    if (!response.ok) throw new CatalogError(response.status);
+    if (retry && TRANSIENT_STATUSES.has(response.status)) {
+      const delay = retryDelayMs(attempt, response.headers.get("retry-after"));
+      // Release the connection; a failed cancel must not mask the retry.
+      await response.body?.cancel().catch(() => {});
+      await backoff(delay, combined);
+      continue;
+    }
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      throw new CatalogError(response.status);
+    }
     return parseCatalog(await response.json());
   }
 }

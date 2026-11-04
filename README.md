@@ -39,7 +39,8 @@ A `.env` file is a development convenience; the clients do not automatically loa
 - Fetches the authenticated `GET https://api.inco.ai/v1/models` catalog. A successful response replaces the previous list, including a successful empty list.
 - Preserves upstream IDs verbatim, including `:fast`. Chat routes are selected under `inco/<upstream-id>`.
 - Uses live names, context windows, explicit image/tool capabilities, and prices in USD per million tokens. Missing output limits use a conservative 16,384-token request budget.
-- Keeps public catalog metadata in `$PI_CODING_AGENT_DIR/cache/pi-provider-inco/` (default `~/.pi/agent/cache/pi-provider-inco/`), scoped by a SHA-256 credential fingerprint. A different key cannot reuse another key's catalog.
+- Keeps public catalog metadata in `cache/pi-provider-inco/` under pi's agent directory, resolved the way pi resolves it: `PI_CODING_AGENT_DIR` with `~` expanded, an empty value treated as unset, default `~/.pi/agent/`. Entries are scoped by a SHA-256 credential fingerprint. A different key cannot reuse another key's catalog.
+- Retries the catalog request up to three times on HTTP 429/500/502/503/504 (honouring `Retry-After`, capped at 5 seconds) and on transient connection errors, within one 10-second budget.
 - Uses the matching persisted catalog during outages, then the bundled public snapshot on first use. HTTP 401/403 clears the matching catalog and lists no models.
 
 Discovery completes before startup model selection, then uses pi's native provider refresh lifecycle. Run `pi update --models` to refresh explicitly; the provider respects offline mode.
