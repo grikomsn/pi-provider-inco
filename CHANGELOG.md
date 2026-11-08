@@ -1,5 +1,12 @@
 # pi-provider-inco
 
+## 1.0.3
+
+### Patch Changes
+
+- 39eb0f4: Refresh the bundled Inco catalog from the 2026-11-09 live snapshot: Kimi K3 routes (retired 2026-11-06) are replaced by Kimi K3.1 Pro Fast and Standard, GLM and MiniMax pricing is updated, and reasoning profiles adopt the Copilot bridge's 2026-11-06 verification including per-route default efforts.
+- 39eb0f4: Honor per-model default reasoning efforts: unspecified requests now land on the route's nominated default (verified Copilot-bridge profiles first, then the live catalog's nested `reasoning.efforts.default`), and pi's default `medium` thinking level steers to that effort when the model rejects `medium`. Persisted catalogs are versioned so stale cache shapes no longer parse into fallback defaults.
+
 ## 1.0.2
 
 ### Patch Changes
