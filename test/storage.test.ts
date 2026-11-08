@@ -28,7 +28,7 @@ async function isolated(agentDir: string | undefined, fn: (root: string) => Prom
   }
 }
 
-const payload = { data: [{ id: "glm-5.3" }] };
+const payload = { version: 2, data: [{ id: "glm-5.3" }] };
 
 test("cache defaults to pi's agent directory under HOME", async () => {
   await isolated(undefined, async (root) => {

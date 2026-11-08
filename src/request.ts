@@ -9,7 +9,12 @@ export function prepareRequest(payload: unknown, id: string, models: readonly Ca
   const result: Record<string, unknown> = { ...body, model: id };
   const requested = body.reasoning_effort;
   const effort = typeof requested === "string" && model.efforts.includes(requested as ReasoningEffort)
-    ? requested : model.efforts.includes("high") ? "high" : model.efforts[0];
+    ? requested
+    // Unspecified requests land on the route's nominated default (the bundled
+    // profile's or the live catalog's), else the highest listed effort — never
+    // silently the lowest, which would under-reason models like standard
+    // DeepSeek whose server default is off while pi's default is "medium".
+    : model.defaultEffort ?? model.efforts.at(-1);
   if (effort) result.reasoning_effort = effort;
   else delete result.reasoning_effort;
   const tokens = Number(body.max_completion_tokens ?? body.max_tokens ?? model.maxTokens);

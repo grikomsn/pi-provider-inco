@@ -45,24 +45,23 @@ A `.env` file is a development convenience; the clients do not automatically loa
 
 Discovery completes before startup model selection, then uses pi's native provider refresh lifecycle. Run `pi update --models` to refresh explicitly; the provider respects offline mode.
 
-The bundled snapshot and verified tool/reasoning profiles come from [inco-copilot-chat](https://github.com/grikomsn/inco-copilot-chat). They cover ten routes: DeepSeek V4.1 Flash, GLM 5.3, GLM 5.3 Flash, Kimi K3, and MiniMax M3.1 Flash, each with a `:fast` variant. The current live catalog always wins.
+The bundled snapshot and verified tool/reasoning profiles come from [inco-copilot-chat](https://github.com/grikomsn/inco-copilot-chat), refreshed 2026-11-09. They cover ten routes: DeepSeek V4.1 Flash, GLM 5.3, GLM 5.3 Flash, Kimi K3.1 Pro, and MiniMax M3.1 Flash — the GLM, DeepSeek, and MiniMax routes each have a `:fast` variant, Kimi K3.1 Pro ships `:fast` and `:standard`. Kimi K3 retired on 2026-11-06; its routes left the catalog. The current live catalog always wins.
 
 ## Reasoning and tools
 
-Pi maps `off` to Inco AI `none`. Unsupported thinking levels are `null`, so pi clamps to a supported level. The final request is validated against the current model catalog. Requests use `reasoning_effort`, and explicit live effort lists are never widened by bundled profiles.
+Pi maps `off` to Inco AI `none`. Unsupported thinking levels are `null`, so pi clamps to a supported level; a model that rejects pi's default `medium` level gets the route's nominated default effort instead. The final request is validated against the current model catalog. Requests use `reasoning_effort`, and explicit live effort lists are never widened by bundled profiles.
 
-| Route | Bundled accepted effort controls |
+| Route | Bundled accepted effort controls (default) |
 | --- | --- |
-| DeepSeek V4.1 Flash, either route | none, minimal, low, medium, high, xhigh, max |
-| Kimi K3 | none, low, high, max |
-| Kimi K3 Fast | none, minimal, low, medium, high, xhigh, max |
-| GLM 5.3 / GLM 5.3 Flash | low, high, max |
-| GLM Fast routes / MiniMax Fast | minimal, low, medium, high, xhigh, max |
-| MiniMax M3.1 Flash | none, minimal, low, medium, high, xhigh, max |
+| DeepSeek V4.1 Flash, either route | none, minimal, low, medium, high, xhigh, max (high; the Fast route defaults to none) |
+| Kimi K3.1 Pro Fast | none, minimal, low, medium, high, xhigh, max (high) |
+| GLM 5.3 / GLM 5.3 Flash | low, high, max (high) |
+| GLM Fast routes / MiniMax Fast | minimal, low, medium, high, xhigh, max (high) |
+| MiniMax M3.1 Flash | none, minimal, low, medium, high, xhigh, max (high) |
 
 Positive effort spellings accepted by the service do not establish distinct reasoning depths. Fast GLM and MiniMax routes omit `none` because the Copilot bridge's probes did not establish that it stops reasoning. Unknown models keep the server default unless live metadata explicitly enumerates their efforts.
 
-All ten bundled routes have verified structured tool support. Standard `deepseek-v4.1-flash` requires effort `none` for **forced** tool choice; automatic tools can use thinking. Invalid forced-tool combinations fail before sending. Use the Fast route for forced tools with thinking.
+All nine reasoning-profiled routes have verified structured tool support; the Kimi K3.1 Pro `:standard` route ships without verified tools or efforts until probed. Standard `deepseek-v4.1-flash` requires effort `none` for **forced** tool choice; automatic tools can use thinking. Invalid forced-tool combinations fail before sending. Use the Fast route for forced tools with thinking.
 
 ## Transport and privacy
 

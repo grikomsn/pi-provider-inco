@@ -14,23 +14,30 @@ export interface CatalogModel {
   imageInput: boolean;
   toolCalling: boolean;
   efforts: ReasoningEffort[];
+  /** Effort the route nominates as its default; always a member of `efforts`. */
+  defaultEffort?: ReasoningEffort;
   cost?: { input: number; output: number; cacheRead?: number };
 }
 
-/** Verified per-route effort controls from inco-copilot-chat, 2026-10-23. */
-const PROFILES: Readonly<Record<string, readonly ReasoningEffort[]>> = {
-  "deepseek-v4.1-flash": REASONING_EFFORTS,
-  "deepseek-v4.1-flash:fast": REASONING_EFFORTS,
-  "kimi-k3": ["none", "low", "high", "max"],
-  "kimi-k3:fast": REASONING_EFFORTS,
+/**
+ * Verified per-route effort controls from inco-copilot-chat, 2026-11-06. HTTP
+ * acceptance and a working reasoning-off switch are separate observations; the
+ * accepted-but-inert spellings stay listed because the service answers them.
+ */
+const PROFILES: Readonly<Record<string, { efforts: readonly ReasoningEffort[]; defaultEffort: ReasoningEffort }>> = {
+  "deepseek-v4.1-flash": { efforts: REASONING_EFFORTS, defaultEffort: "high" },
+  "deepseek-v4.1-flash:fast": { efforts: REASONING_EFFORTS, defaultEffort: "none" },
+  // Kimi K3 retires on 2026-11-06; `kimi-k3` refuses requests with 404.
+  "kimi-k3": { efforts: ["none", "low", "high", "max"], defaultEffort: "high" },
+  "kimi-k3.1-pro:fast": { efforts: REASONING_EFFORTS, defaultEffort: "high" },
   // `none`, `minimal`, `medium`, and `xhigh` are rejected with HTTP 400.
-  "glm-5.3": ["low", "high", "max"],
-  "glm-5.3-flash": ["low", "high", "max"],
+  "glm-5.3": { efforts: ["low", "high", "max"], defaultEffort: "high" },
+  "glm-5.3-flash": { efforts: ["low", "high", "max"], defaultEffort: "high" },
   // `none` is accepted but does not disable reasoning on these hosted routes.
-  "glm-5.3:fast": ["minimal", "low", "medium", "high", "xhigh", "max"],
-  "glm-5.3-flash:fast": ["minimal", "low", "medium", "high", "xhigh", "max"],
-  "minimax-m3.1-flash:fast": ["minimal", "low", "medium", "high", "xhigh", "max"],
-  "minimax-m3.1-flash": REASONING_EFFORTS,
+  "glm-5.3:fast": { efforts: ["minimal", "low", "medium", "high", "xhigh", "max"], defaultEffort: "high" },
+  "glm-5.3-flash:fast": { efforts: ["minimal", "low", "medium", "high", "xhigh", "max"], defaultEffort: "high" },
+  "minimax-m3.1-flash:fast": { efforts: ["minimal", "low", "medium", "high", "xhigh", "max"], defaultEffort: "high" },
+  "minimax-m3.1-flash": { efforts: REASONING_EFFORTS, defaultEffort: "high" },
 };
 
 
@@ -56,7 +63,26 @@ export function reasoningEfforts(id: string, advertised: unknown, enabled: unkno
   return Array.isArray(advertised)
     ? [...new Set(advertised.filter((item): item is ReasoningEffort =>
       typeof item === "string" && (REASONING_EFFORTS as readonly string[]).includes(item)))]
-    : [...(PROFILES[id] ?? [])];
+    : [...(PROFILES[id]?.efforts ?? [])];
+}
+
+/**
+ * The route's default effort. Bundled profiles carry live-verified defaults
+ * (probes showed `deepseek-v4.1-flash:fast` runs Off at the server default
+ * even though the catalog nominates "high"), so the profile wins when it is a
+ * member of the accepted list; the catalog's own nomination (nested
+ * `reasoning.efforts.default` or a flat `reasoning_effort_default`) applies to
+ * routes without a verified profile.
+ */
+export function defaultEffort(id: string, efforts: readonly ReasoningEffort[], item: Record<string, unknown>): ReasoningEffort | undefined {
+  const profile = PROFILES[id]?.defaultEffort;
+  if (profile !== undefined && (efforts as readonly string[]).includes(profile)) return profile;
+  const nested = record(record(item.reasoning)?.efforts);
+  const candidates = [nested?.default, item.reasoning_effort_default];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && (efforts as readonly string[]).includes(candidate)) return candidate as ReasoningEffort;
+  }
+  return undefined;
 }
 
 export function parseCatalog(payload: unknown): CatalogModel[] {
@@ -75,6 +101,14 @@ export function parseCatalog(payload: unknown): CatalogModel[] {
     const input = price(pricing?.prompt ?? pricing?.input_per_1m ?? pricing?.input);
     const output = price(pricing?.completion ?? pricing?.output_per_1m ?? pricing?.output);
     const cacheRead = price(pricing?.cached_input);
+    // The 2026-11 API shape nests accepted efforts under
+    // `reasoning.efforts.supported` (and no longer sets
+    // `capabilities.reasoning_effort`); read it so live lists stay
+    // authoritative for models without a verified profile.
+    const nestedEfforts = record(record(item.reasoning)?.efforts)?.supported;
+    const enabled = capabilities?.reasoning_effort === undefined && nestedEfforts !== undefined
+      ? undefined : capabilities?.reasoning_effort;
+    const efforts = reasoningEfforts(id, item.reasoning_efforts ?? nestedEfforts, enabled);
     result.set(id, {
       id,
       name: typeof item.name === "string" && item.name.trim() ? item.name.trim() : id,
@@ -83,7 +117,8 @@ export function parseCatalog(payload: unknown): CatalogModel[] {
       imageInput: Array.isArray(modalities?.input) && modalities.input.includes("image"),
       toolCalling: typeof (capabilities?.tool_calling ?? item.tool_calling) === "boolean"
         ? Boolean(capabilities?.tool_calling ?? item.tool_calling) : VERIFIED_TOOLS.has(id),
-      efforts: reasoningEfforts(id, item.reasoning_efforts, capabilities?.reasoning_effort),
+      efforts,
+      ...(defaultEffort(id, efforts, item) !== undefined ? { defaultEffort: defaultEffort(id, efforts, item) } : {}),
       ...(input === undefined || output === undefined ? {} : {
         cost: { input, output, ...(cacheRead === undefined ? {} : { cacheRead }) },
       }),

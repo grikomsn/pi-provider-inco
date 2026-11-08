@@ -71,7 +71,11 @@ export function incoProvider(storage: CatalogStorage = diskStorage(), fetcher: t
       else if (key) {
         try {
           const { parseCatalog } = await import("./catalog.ts");
-          next = parseCatalog(await storage.read(nextScope!));
+          const saved = await storage.read(nextScope!);
+          // Version check mirrors discoverModels: stale cache shapes must not
+          // silently degrade into fallback defaults.
+          const { isCurrentCachePayload } = await import("./discovery.ts");
+          if (isCurrentCachePayload(saved)) next = parseCatalog(saved);
         } catch { /* Offline initialization without a matching cache. */ }
       }
       await context.publish({ update: () => { catalog = next; scope = nextScope; } });
