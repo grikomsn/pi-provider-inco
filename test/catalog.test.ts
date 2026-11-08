@@ -15,8 +15,31 @@ const unavailable: typeof fetch = async () => { throw new TypeError("fetch faile
 
 test("bundled public catalog has ten routes, verbatim fast IDs and bounded output", () => {
   assert.equal(FALLBACK_MODELS.length, 10);
+  // Kimi K3 retired 2026-11-06; its routes are replaced by kimi-k3.1-pro.
+  assert.ok(FALLBACK_MODELS.every((m) => !m.id.startsWith("kimi-k3:")));
+  assert.ok(FALLBACK_MODELS.some((m) => m.id === "kimi-k3.1-pro:fast"));
   assert.equal(FALLBACK_MODELS.filter((m) => m.id.endsWith(":fast")).length, 5);
-  assert.ok(FALLBACK_MODELS.every((m) => m.maxTokens === 16384 && m.toolCalling));
+  // The new :standard Kimi route ships no verified efforts or tools yet.
+  const standard = FALLBACK_MODELS.find((m) => m.id === "kimi-k3.1-pro:standard");
+  assert.ok(standard);
+  assert.deepEqual(standard!.efforts, []);
+  assert.equal(standard!.toolCalling, false);
+  assert.ok(FALLBACK_MODELS.filter((m) => m.id !== "kimi-k3.1-pro:standard")
+    .every((m) => m.maxTokens === 16384 && m.toolCalling));
+});
+test("bundled defaults mirror the verified profile, with live nominations filling gaps", () => {
+  // Verified profile defaults (2026-11-06 probes) win over the live
+  // nomination: the fast DeepSeek route runs Off at the server default even
+  // though the catalog nominates "high".
+  assert.equal(FALLBACK_MODELS.find((m) => m.id === "deepseek-v4.1-flash")!.defaultEffort, "high");
+  assert.equal(FALLBACK_MODELS.find((m) => m.id === "deepseek-v4.1-flash:fast")!.defaultEffort, "none");
+  assert.equal(FALLBACK_MODELS.find((m) => m.id === "glm-5.3:fast")!.defaultEffort, "high");
+  assert.equal(FALLBACK_MODELS.find((m) => m.id === "kimi-k3.1-pro:fast")!.defaultEffort, "high");
+  // Routes without a verified profile take the catalog's own nomination.
+  const unprofiled = parseCatalog({ data: [{
+    id: "glm-6", reasoning: { efforts: { supported: ["low", "high", "max"], default: "max" } },
+  }] });
+  assert.equal(unprofiled[0]!.defaultEffort, "max");
 });
 test("live metadata overrides profiles, preserves prices per million, and does not widen capabilities", () => {
   const [m] = parseCatalog(live);

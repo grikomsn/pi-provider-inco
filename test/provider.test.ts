@@ -33,7 +33,9 @@ test("native discovery replaces inventories and removes refused credentials", as
 test("pi thinking mappings expose only accepted model values and native compatibility", () => {
   const glm = toPiModel(FALLBACK_MODELS.find((m) => m.id === "glm-5.3")!);
   assert.equal(glm.thinkingLevelMap!.off, null);
-  assert.equal(glm.thinkingLevelMap!.medium, null);
+  // glm-5.3 rejects "medium"; pi's default level steers to the route's
+  // verified default effort ("high") instead of dropping to null.
+  assert.equal(glm.thinkingLevelMap!.medium, "high");
   assert.equal(glm.thinkingLevelMap!.high, "high");
   assert.equal(glm.compat!.maxTokensField, "max_completion_tokens");
   assert.equal(toPiModel(FALLBACK_MODELS.find((m) => m.id === "deepseek-v4.1-flash:fast")!).thinkingLevelMap!.off, "none");
